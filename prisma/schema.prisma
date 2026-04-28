@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model match_players {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id  String        @db.Uuid
+  user_id   String        @db.Uuid
+  team      team_side     @default(team_a)
+  status    player_status @default(pending)
+  joined_at DateTime      @default(now()) @db.Timestamp(6)
+  matches   matches       @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users     users         @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@unique([match_id, user_id], map: "uq_match_player")
+  @@index([match_id], map: "idx_match_players_match")
+  @@index([status], map: "idx_match_players_status")
+  @@index([user_id], map: "idx_match_players_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model match_results {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id      String      @unique @db.Uuid
+  registered_by String      @db.Uuid
+  score_team_a  String      @db.VarChar(20)
+  score_team_b  String      @db.VarChar(20)
+  winner        winner_team
+  registered_at DateTime    @default(now()) @db.Timestamp(6)
+  matches       matches     @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users       @relation(fields: [registered_by], references: [id], onUpdate: NoAction)
+
+  @@index([match_id], map: "idx_match_results_match")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model matches {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizer_id  String          @db.Uuid
+  club          String          @db.VarChar(200)
+  format        match_format    @default(doubles)
+  status        match_status    @default(open)
+  match_date    DateTime        @db.Date
+  match_time    DateTime        @db.Time(6)
+  created_at    DateTime        @default(now()) @db.Timestamp(6)
+  updated_at    DateTime        @default(now()) @db.Timestamp(6)
+  match_players match_players[]
+  match_results match_results?
+  users         users           @relation(fields: [organizer_id], references: [id], onUpdate: NoAction)
+  mmr_history   mmr_history[]
+
+  @@index([match_date], map: "idx_matches_date")
+  @@index([organizer_id], map: "idx_matches_organizer")
+  @@index([status], map: "idx_matches_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mmr_history {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  match_id      String   @db.Uuid
+  mmr_before    Int
+  mmr_after     Int
+  delta         Int      @default(dbgenerated("(mmr_after - mmr_before)"))
+  calculated_at DateTime @default(now()) @db.Timestamp(6)
+  matches       matches  @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, match_id], map: "uq_mmr_per_match_user")
+  @@index([match_id], map: "idx_mmr_history_match")
+  @@index([user_id, calculated_at(sort: Desc)], map: "idx_mmr_history_user")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model refresh_tokens {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token      String   @unique @db.VarChar(512)
+  expires_at DateTime @db.Timestamp(6)
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "idx_refresh_tokens_exp")
+  @@index([user_id], map: "idx_refresh_tokens_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rut            Int
+  dv_rut         String           @db.Char(1)
+  phone          String           @unique @db.VarChar(20)
+  name           String           @db.VarChar(100)
+  password_hash  String           @db.VarChar(255)
+  photo_url      String?          @db.VarChar(500)
+  level          user_level       @default(tercera)
+  zone           String           @db.VarChar(100)
+  mmr            Int              @default(1000)
+  role           user_role        @default(player)
+  is_active      Boolean          @default(true)
+  created_at     DateTime         @default(now()) @db.Timestamp(6)
+  updated_at     DateTime         @default(now()) @db.Timestamp(6)
+  match_players  match_players[]
+  match_results  match_results[]
+  matches        matches[]
+  mmr_history    mmr_history[]
+  refresh_tokens refresh_tokens[]
+
+  @@unique([rut, dv_rut], map: "uq_rut")
+  @@index([is_active], map: "idx_users_active")
+  @@index([level], map: "idx_users_level")
+  @@index([mmr(sort: Desc)], map: "idx_users_mmr")
+  @@index([rut], map: "idx_users_rut")
+  @@index([zone], map: "idx_users_zone")
+}
+
+enum match_format {
+  doubles
+  singles
+}
+
+enum match_status {
+  open
+  confirmed
+  in_progress
+  finished
+  cancelled
+}
+
+enum player_status {
+  pending
+  confirmed
+  rejected
+  removed
+}
+
+enum team_side {
+  team_a
+  team_b
+}
+
+enum user_level {
+  primera  @map("1ra")
+  segunda  @map("2da")
+  tercera  @map("3ra")
+  cuarta  @map("4ta")
+  quinta  @map("5ta")
+  sexta  @map("6ta")
+  septima_mas @map("7ma+")
+}
+
+enum user_role {
+  player
+  admin
+}
+
+enum winner_team {
+  team_a
+  team_b
+  draw
+}
