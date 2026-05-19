@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ rut: string }> } //  Forzamos a Next.js a tratar params de forma segura
+  context: { params: Promise<{ rut: string }> } 
 ) {
   try {
     // 1. Esperamos a que los parámetros de la URL se resuelvan por completo

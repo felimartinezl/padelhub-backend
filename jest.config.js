@@ -10,7 +10,7 @@ const config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  // 🌟 ESTA ES LA CLAVE: Le enseña a Jest a leer extensiones TS sin marearse con el bundler
+  
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 }
 

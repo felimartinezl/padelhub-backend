@@ -10,7 +10,7 @@ cloudinary.config({
 });
 
 // ==========================================
-// 📥 POST: AÑADIR O CAMBIAR FOTO DE PERFIL
+// POST: AÑADIR O CAMBIAR FOTO DE PERFIL
 // ==========================================
 export async function POST(
   request: Request,
@@ -40,8 +40,7 @@ export async function POST(
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 4. SI EL USUARIO YA TENÍA FOTO, BORRAR LA ANTERIOR DE CLOUDINARY
-    // 💡 Modificado: Ahora lee correctamente 'photo_url'
+    // 4. SI EL USUARIO YA TENÍA FOTO, BORRAR LA ANTERIOR DE CLOUDINARY    //  
     if (player.photo_url) {
       try {
         const urlParts = player.photo_url.split("/");
@@ -71,7 +70,7 @@ export async function POST(
     const secureUrl = uploadResponse.secure_url;
 
     // 6. Guardar la URL en la base de datos de Supabase usando Prisma
-    // 💡 Modificado: Ahora actualiza el campo exacto 'photo_url'
+    //  Modificado: Ahora actualiza el campo exacto 'photo_url'
     await prisma.users.update({
       where: { id: player.id },
       data: {
@@ -90,7 +89,7 @@ export async function POST(
 }
 
 // ==========================================
-// 🗑️ DELETE: ELIMINAR FOTO DE PERFIL
+//  DELETE: ELIMINAR FOTO DE PERFIL
 // ==========================================
 export async function DELETE(
   request: Request,
@@ -103,7 +102,7 @@ export async function DELETE(
       where: { rut: parseInt(rut) },
     });
 
-    // 💡 Modificado: Valida usando 'photo_url'
+    //  Modificado: Valida usando 'photo_url'
     if (!player || !player.photo_url) {
       return NextResponse.json({ error: "El jugador no existe o no tiene foto de perfil" }, { status: 404 });
     }
@@ -115,7 +114,7 @@ export async function DELETE(
     await cloudinary.uploader.destroy(publicId);
 
     // 2. Dejar el campo nulo en la Base de Datos
-    // 💡 Modificado: Setea 'photo_url' en null
+    //  Modificado: Setea 'photo_url' en null
     await prisma.users.update({
       where: { id: player.id },
       data: {

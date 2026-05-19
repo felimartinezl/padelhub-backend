@@ -1,3 +1,4 @@
+// conexion de prueba inicial a la base de datos // no se utiliza, no sirve para nada.
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
@@ -5,7 +6,7 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    // Intentamos contar los registros de match_players
+    
     const count = await prisma.match_players.count();
     return NextResponse.json({ 
       status: "Conectado correctamente", 
