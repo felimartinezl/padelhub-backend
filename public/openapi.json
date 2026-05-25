@@ -7,8 +7,8 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000/api",
-      "description": "Servidor Local de Desarrollo"
+      "url": "https://padelhub-backend-phi.vercel.app/api",
+      "description": "Servidor de producción en Vercel"
     }
   ],
   "tags": [
