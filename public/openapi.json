@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "PadelHub API - Sistema de Gestión de Partidos",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Documentación técnica oficial del backend PadelHub."
   },
   "servers": [
@@ -16,7 +16,9 @@
     { "name": "2. Usuarios", "description": "Registro, consulta y eliminación de jugadores" },
     { "name": "3. Perfil", "description": "Perfil deportivo, edición y foto" },
     { "name": "4. Partidos", "description": "Creación y consulta de partidos" },
-    { "name": "5. Invitaciones", "description": "Invitar jugadores y responder invitaciones" }
+    { "name": "5. Invitaciones", "description": "Invitar jugadores y responder invitaciones" },
+    { "name": "6. QR y Presencia", "description": "Generar QR para iniciar partido y confirmar presencia" },
+    { "name": "7. Resultados", "description": "Registrar y confirmar resultados de partidos" }
   ],
   "paths": {
     "/auth/login": {
@@ -441,6 +443,173 @@
           "400": { "description": "Invitación ya respondida, partido no disponible o lleno." },
           "403": { "description": "No tienes permiso para responder esta invitación." },
           "404": { "description": "Invitación no encontrada." }
+        }
+      }
+    },
+
+    "/matches/{id}/qr": {
+      "get": {
+        "tags": ["6. QR y Presencia"],
+        "summary": "Generar QR para iniciar partido",
+        "description": "Solo el organizador puede generar el QR. El token expira en 30 minutos.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "ID del partido" },
+          { "name": "user_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "UUID del organizador" }
+        ],
+        "responses": {
+          "200": {
+            "description": "QR generado correctamente.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "token": "uuid-partido.1748900000000.a3f2c8...",
+                  "expires_at": "2026-05-25T15:30:00.000Z",
+                  "qr_payload": "padelhub://confirm-presence?match_id=UUID&token=TOKEN"
+                }
+              }
+            }
+          },
+          "400": { "description": "Partido no está en estado válido para generar QR." },
+          "403": { "description": "Solo el organizador puede generar el QR." },
+          "404": { "description": "Partido no encontrado." }
+        }
+      }
+    },
+
+    "/matches/{id}/confirm-presence": {
+      "post": {
+        "tags": ["6. QR y Presencia"],
+        "summary": "Confirmar presencia escaneando el QR",
+        "description": "Cada jugador llama a este endpoint tras escanear el QR. Cuando todos confirman, el partido pasa a 'in_progress'.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "ID del partido" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id", "token"],
+                "properties": {
+                  "user_id": { "type": "string", "format": "uuid", "description": "UUID del jugador que escanea" },
+                  "token":   { "type": "string", "description": "Token obtenido del qr_payload" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presencia confirmada. Si todos confirmaron, match_started será true.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Presencia confirmada",
+                  "match_started": false,
+                  "confirmed_count": 2,
+                  "total_players": 4
+                }
+              }
+            }
+          },
+          "400": { "description": "Token inválido, expirado o no corresponde al partido." },
+          "403": { "description": "El jugador no pertenece a este partido." },
+          "404": { "description": "Partido no encontrado." }
+        }
+      }
+    },
+
+    "/matches/{id}/result": {
+      "post": {
+        "tags": ["7. Resultados"],
+        "summary": "Registrar resultado del partido",
+        "description": "Cualquier jugador del partido puede registrar el resultado. Queda pendiente hasta que el equipo contrario confirme.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "ID del partido" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["submitted_by", "score_team_a", "score_team_b", "winner"],
+                "properties": {
+                  "submitted_by":  { "type": "string", "format": "uuid" },
+                  "score_team_a":  { "type": "string", "example": "6-3, 4-6, 7-5", "description": "Marcador del equipo A (texto libre, ej: '6-3')" },
+                  "score_team_b":  { "type": "string", "example": "3-6, 6-4, 5-7" },
+                  "winner":        { "type": "string", "enum": ["team_a", "team_b", "draw"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Resultado registrado. Pendiente de confirmación del equipo contrario." },
+          "400": { "description": "Campos faltantes, winner inválido o partido en estado incorrecto." },
+          "403": { "description": "El submitted_by no es jugador del partido." },
+          "409": { "description": "Ya existe un resultado pendiente o confirmado para este partido." }
+        }
+      },
+      "get": {
+        "tags": ["7. Resultados"],
+        "summary": "Obtener resultado del partido",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "ID del partido" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado del partido.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "uuid",
+                  "match_id": "uuid",
+                  "score_team_a": "6-3",
+                  "score_team_b": "3-6",
+                  "winner": "team_a",
+                  "confirmed": false,
+                  "confirmed_by": null,
+                  "confirmed_at": null,
+                  "registered_at": "2026-05-25T18:00:00.000Z",
+                  "users": { "id": "uuid", "name": "Juan Pérez" }
+                }
+              }
+            }
+          },
+          "404": { "description": "No hay resultado registrado para este partido." }
+        }
+      }
+    },
+
+    "/matches/{id}/result/confirm": {
+      "post": {
+        "tags": ["7. Resultados"],
+        "summary": "Confirmar resultado (equipo contrario)",
+        "description": "Debe ser un jugador del equipo contrario a quien registró el resultado. Al confirmar, el partido pasa a 'finished'.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "ID del partido" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["confirmed_by"],
+                "properties": {
+                  "confirmed_by": { "type": "string", "format": "uuid", "description": "UUID del jugador del equipo contrario que confirma" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Resultado confirmado. Partido finalizado." },
+          "403": { "description": "No es jugador del partido, es del mismo equipo, o intenta auto-confirmar." },
+          "404": { "description": "No hay resultado pendiente para confirmar." },
+          "409": { "description": "El resultado ya fue confirmado." }
         }
       }
     }
