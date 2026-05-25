@@ -16,6 +16,12 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
             >
               Usuarios
             </a>
+            <a
+              href="/admin/courts"
+              className="text-indigo-200 hover:text-white text-sm transition-colors"
+            >
+              Canchas
+            </a>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-white text-sm font-medium">{admin.name}</span>

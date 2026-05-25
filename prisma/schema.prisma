@@ -150,6 +150,34 @@ model users {
   @@index([zone], map: "idx_users_zone")
 }
 
+model courts {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String            @db.VarChar(100)
+  address         String            @db.VarChar(200)
+  zone            String            @db.VarChar(100)
+  surface         court_surface     @default(indoor)
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now()) @db.Timestamp(6)
+  updated_at      DateTime          @default(now()) @db.Timestamp(6)
+  court_schedules court_schedules[]
+
+  @@index([zone], map: "idx_courts_zone")
+  @@index([is_active], map: "idx_courts_active")
+}
+
+model court_schedules {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  court_id     String   @db.Uuid
+  day_of_week  Int
+  open_time    DateTime @db.Time(6)
+  close_time   DateTime @db.Time(6)
+  is_available Boolean  @default(true)
+  courts       courts   @relation(fields: [court_id], references: [id], onDelete: Cascade)
+
+  @@unique([court_id, day_of_week], map: "uq_court_schedule")
+  @@index([court_id], map: "idx_schedules_court")
+}
+
 model match_invitations {
   id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   match_id     String            @db.Uuid
@@ -166,6 +194,12 @@ model match_invitations {
   @@index([match_id], map: "idx_invitations_match")
   @@index([user_id], map: "idx_invitations_user")
   @@index([status], map: "idx_invitations_status")
+}
+
+enum court_surface {
+  indoor
+  outdoor
+  covered
 }
 
 enum match_format {
