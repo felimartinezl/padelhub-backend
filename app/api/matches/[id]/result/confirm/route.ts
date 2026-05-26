@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { calculateAndStoreMMR } from "@/lib/mmr";
 
 export async function POST(
   request: Request,
@@ -79,11 +80,20 @@ export async function POST(
       }),
     ]);
 
+    let mmr_updated = false;
+    try {
+      await calculateAndStoreMMR(match_id);
+      mmr_updated = true;
+    } catch (err: any) {
+      console.error("[MMR] Error al calcular MMR:", err?.message ?? err);
+    }
+
     return NextResponse.json({
       message: "Resultado confirmado. ¡Partido finalizado!",
       winner: result.winner,
       score_team_a: result.score_team_a,
       score_team_b: result.score_team_b,
+      mmr_updated,
     });
   } catch (error: any) {
     return NextResponse.json(
