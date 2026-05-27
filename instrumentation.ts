@@ -3,15 +3,37 @@ import cron from 'node-cron';
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { isMatchExpired } from '@/lib/match-window';
 
 const prisma = new PrismaClient();
 
 export async function register() {
   // corre exclusivamente en el entorno del servidor Node.js
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    
-    //  backup cada 1 minuto (demostrativo)
-    const cronExpression = '*/1 * * * *'; 
+
+    // Elimina partidos expirados (pasaron más de 15 min desde su hora)
+    cron.schedule('*/1 * * * *', async () => {
+      try {
+        const pendingMatches = await prisma.matches.findMany({
+          where: { status: { in: ['open', 'confirmed'] } },
+          select: { id: true, match_date: true, match_time: true },
+        });
+
+        const expiredIds = pendingMatches
+          .filter((m) => isMatchExpired(m.match_date, m.match_time))
+          .map((m) => m.id);
+
+        if (expiredIds.length > 0) {
+          await prisma.matches.deleteMany({ where: { id: { in: expiredIds } } });
+          console.log(`🗑️  [CRON] ${expiredIds.length} partido(s) expirado(s) eliminado(s).`);
+        }
+      } catch (error) {
+        console.error('❌ [CRON] Error al limpiar partidos expirados:', error);
+      }
+    }, { scheduled: true, timezone: 'America/Santiago' } as any);
+
+    // backup diario a las 2:00 AM (America/Santiago)
+    const cronExpression = '0 2 * * *';
 
     console.log("⏰ [MOTOR] Sistema de Backups Automáticos inicializado correctamente.");
 

@@ -91,17 +91,41 @@ export async function PATCH(
     ]);
 
     const newCount = match.match_players.length + 1;
+    let matchStatus = match.status;
     if (newCount >= maxPlayers) {
       await prisma.matches.update({
         where: { id: match.id },
         data: { status: "confirmed" },
       });
+      matchStatus = "confirmed";
     }
 
-    return NextResponse.json(
-      { message: "Te has unido al partido correctamente" },
-      { status: 200 }
-    );
+    const updatedPlayers = await prisma.match_players.findMany({
+      where: { match_id: invitation.match_id, status: "confirmed" },
+      include: {
+        users: { select: { id: true, name: true, level: true, photo_url: true } },
+      },
+    });
+
+    return NextResponse.json({
+      message: "Te has unido al partido correctamente",
+      match: {
+        id: match.id,
+        club: match.club,
+        format: match.format,
+        status: matchStatus,
+        match_date: match.match_date,
+        match_time: match.match_time,
+        is_full: newCount >= maxPlayers,
+        player_count: newCount,
+        max_players: maxPlayers,
+        players: updatedPlayers.map((mp) => ({
+          ...mp.users,
+          team: mp.team,
+        })),
+      },
+      assigned_team: team,
+    }, { status: 200 });
   } catch (error: any) {
     if (error.code === "P2002") {
       return NextResponse.json(

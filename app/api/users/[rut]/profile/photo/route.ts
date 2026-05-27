@@ -17,11 +17,11 @@ export async function POST(
   context: { params: Promise<{ rut: string }> }
 ) {
   try {
-    const { rut } = await context.params;
+    const { rut: id } = await context.params;
 
     // 1. Verificar que el usuario exista
-    const player = await prisma.users.findFirst({
-      where: { rut: parseInt(rut) },
+    const player = await prisma.users.findUnique({
+      where: { id },
     });
 
     if (!player) {
@@ -96,10 +96,10 @@ export async function DELETE(
   context: { params: Promise<{ rut: string }> }
 ) {
   try {
-    const { rut } = await context.params;
+    const { rut: id } = await context.params;
 
-    const player = await prisma.users.findFirst({
-      where: { rut: parseInt(rut) },
+    const player = await prisma.users.findUnique({
+      where: { id },
     });
 
     //  Modificado: Valida usando 'photo_url'

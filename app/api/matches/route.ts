@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getMatchWindow } from "@/lib/match-window";
 
 const MAX_PLAYERS: Record<string, number> = { doubles: 4, singles: 2 };
 
@@ -106,6 +107,7 @@ export async function GET(request: Request) {
         player_count: playerCount,
         spots_left:   spotsLeft,
         is_full:      spotsLeft === 0,
+        match_window: getMatchWindow(m.match_date, m.match_time),
       };
     });
 
