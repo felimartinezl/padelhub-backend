@@ -1,15 +1,12 @@
-
-import cron from 'node-cron';
-import fs from 'fs';
-import path from 'path';
-import { PrismaClient } from '@prisma/client';
-import { isMatchExpired } from '@/lib/match-window';
-
-const prisma = new PrismaClient();
-
 export async function register() {
-  // corre exclusivamente en el entorno del servidor Node.js
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const cron = (await import('node-cron')).default;
+    const fs = await import('fs');
+    const path = await import('path');
+    const { PrismaClient } = await import('@prisma/client');
+    const { isMatchExpired } = await import('@/lib/match-window');
+
+    const prisma = new PrismaClient();
 
     // Elimina partidos expirados (pasaron más de 15 min desde su hora)
     cron.schedule('*/1 * * * *', async () => {
@@ -32,16 +29,13 @@ export async function register() {
       }
     }, { scheduled: true, timezone: 'America/Santiago' } as any);
 
-    // backup diario a las 2:00 AM (America/Santiago)
-    const cronExpression = '0 2 * * *';
-
     console.log("⏰ [MOTOR] Sistema de Backups Automáticos inicializado correctamente.");
 
-    cron.schedule(cronExpression, async () => {
+    // Backup diario a las 2:00 AM (America/Santiago)
+    cron.schedule('0 2 * * *', async () => {
       console.log("💾 [CRON] Iniciando respaldo automático de la base de datos...");
-      
+
       try {
-        // Obtiene nombres de tablas de forma dinámica
         const modelNames = Object.keys(prisma).filter(
           (key) => !key.startsWith("_") && !key.startsWith("$")
         );
@@ -60,27 +54,21 @@ export async function register() {
           database: fullBackupData
         };
 
-        // Define ruta carpeta donde se guardaran respaldos
         const backupFolder = path.join(process.cwd(), 'backups');
         if (!fs.existsSync(backupFolder)) {
           fs.mkdirSync(backupFolder, { recursive: true });
         }
 
-        // Formatea fecha y hora exacta para evitar reescrituras y crear archivos unicos
         const now = new Date().toLocaleTimeString('es-CL', { hour12: false }).replace(/:/g, '-');
         const today = new Date().toISOString().split('T')[0];
         const filePath = path.join(backupFolder, `cron_backup_${today}_${now}.json`);
 
-        // Escribir respaldo en disco
         fs.writeFileSync(filePath, JSON.stringify(masterBackup, null, 2));
         console.log(`✅ [CRON] ¡Respaldo guardado con éxito!: ${filePath}`);
 
       } catch (error) {
         console.error("❌ [CRON] Error crítico durante la ejecución del respaldo:", error);
       }
-    }, {
-      scheduled: true,
-      timezone: "America/Santiago"
-    } as any);
+    }, { scheduled: true, timezone: "America/Santiago" } as any);
   }
 }
