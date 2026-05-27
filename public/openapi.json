@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "PadelHub API - Sistema de Gestión de Partidos",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Documentación técnica oficial del backend PadelHub."
   },
   "servers": [
@@ -18,7 +18,8 @@
     { "name": "4. Partidos", "description": "Creación y consulta de partidos" },
     { "name": "5. Invitaciones", "description": "Invitar jugadores y responder invitaciones" },
     { "name": "6. QR y Presencia", "description": "Generar QR para iniciar partido y confirmar presencia" },
-    { "name": "7. Resultados", "description": "Registrar y confirmar resultados de partidos" }
+    { "name": "7. Resultados", "description": "Registrar y confirmar resultados de partidos" },
+    { "name": "8. Leaderboard", "description": "Ranking de jugadores por MMR a nivel nacional o por zona" }
   ],
   "paths": {
     "/auth/login": {
@@ -212,25 +213,42 @@
       "post": {
         "tags": ["3. Perfil"],
         "summary": "Subir o cambiar foto de perfil",
+        "description": "Acepta JSON con la imagen codificada en base64. El campo `image` debe ser un data URL completo (ej: `data:image/jpeg;base64,...`). La imagen anterior en Cloudinary se elimina automáticamente.",
         "parameters": [
-          { "name": "rut", "in": "path", "required": true, "schema": { "type": "string", "example": "12345678" } }
+          { "name": "rut", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid", "example": "9d39cac8-e836-41c5-847b-bfb6459a9939" } }
         ],
         "requestBody": {
           "required": true,
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
+                "required": ["image"],
                 "properties": {
-                  "file": { "type": "string", "format": "binary" }
+                  "image": {
+                    "type": "string",
+                    "description": "Imagen en base64 como data URL",
+                    "example": "data:image/jpeg;base64,/9j/4AAQSkZJRgAB..."
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Foto guardada en Cloudinary." }
+          "200": {
+            "description": "Foto guardada en Cloudinary.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Foto de perfil actualizada con éxito",
+                  "photo_url": "https://res.cloudinary.com/padelhub/image/upload/padelhub_avatars/abc123.jpg"
+                }
+              }
+            }
+          },
+          "400": { "description": "Campo 'image' faltante o no es un string válido." },
+          "404": { "description": "Jugador no encontrado." }
         }
       },
       "delete": {
@@ -294,6 +312,85 @@
         ],
         "responses": {
           "200": { "description": "Lista de partidos con jugadores, cupos y zona." }
+        }
+      }
+    },
+    "/matches/{id}": {
+      "get": {
+        "tags": ["4. Partidos"],
+        "summary": "Obtener detalle de un partido",
+        "description": "Retorna toda la información del partido incluyendo organizador, jugadores, resultado y ventana de tiempo activa.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "UUID del partido" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle completo del partido.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "uuid",
+                  "club": "Padel Break Club",
+                  "format": "doubles",
+                  "status": "open",
+                  "match_date": "2026-05-25",
+                  "match_time": "19:30:00",
+                  "zone": "Santiago",
+                  "organizer": { "id": "uuid", "name": "Juan Pérez", "level": "segunda", "zone": "Santiago" },
+                  "players": [
+                    { "id": "uuid", "name": "Juan Pérez", "level": "segunda", "photo_url": null, "team": "team_a", "joined": "2026-05-25T12:00:00.000Z" }
+                  ],
+                  "max_players": 4,
+                  "player_count": 1,
+                  "spots_left": 3,
+                  "is_full": false,
+                  "result": null,
+                  "match_window": { "is_active": false, "starts_at": "2026-05-25T22:15:00.000Z", "ends_at": "2026-05-25T22:45:00.000Z" }
+                }
+              }
+            }
+          },
+          "404": { "description": "Partido no encontrado." }
+        }
+      }
+    },
+    "/matches/{id}/start": {
+      "post": {
+        "tags": ["4. Partidos"],
+        "summary": "Iniciar partido manualmente",
+        "description": "Solo el organizador puede iniciar el partido. Requiere estar dentro de la ventana de ±15 minutos del horario programado.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" }, "description": "UUID del partido" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id"],
+                "properties": {
+                  "user_id": { "type": "string", "format": "uuid", "description": "UUID del organizador" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partido iniciado correctamente.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "¡Partido iniciado!",
+                  "match": { "id": "uuid", "status": "in_progress", "club": "Padel Break Club", "format": "doubles", "match_date": "2026-05-25", "match_time": "19:30:00", "player_count": 3 }
+                }
+              }
+            }
+          },
+          "400": { "description": "Partido no está en estado válido o fuera de la ventana de tiempo." },
+          "403": { "description": "Solo el organizador puede iniciar el partido." },
+          "404": { "description": "Partido no encontrado." }
         }
       }
     },
@@ -610,6 +707,69 @@
           "403": { "description": "No es jugador del partido, es del mismo equipo, o intenta auto-confirmar." },
           "404": { "description": "No hay resultado pendiente para confirmar." },
           "409": { "description": "El resultado ya fue confirmado." }
+        }
+      }
+    },
+
+    "/leaderboard": {
+      "get": {
+        "tags": ["8. Leaderboard"],
+        "summary": "Ranking de jugadores por MMR",
+        "description": "Devuelve el ranking ordenado por MMR descendente. Sin parámetros retorna el ranking nacional. Usar `zone` para el ranking por zona.",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "query",
+            "required": false,
+            "description": "Filtra el ranking por zona (ej: 'Santiago', 'Concepción'). Sin este parámetro se retorna el ranking nacional.",
+            "schema": { "type": "string", "example": "Santiago" }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Filtra por nivel de jugador",
+            "schema": {
+              "type": "string",
+              "enum": ["primera", "segunda", "tercera", "cuarta", "quinta", "sexta", "septima_mas"],
+              "example": "segunda"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Máximo de resultados a retornar (default: 50, máx: 100)",
+            "schema": { "type": "integer", "example": 50, "default": 50, "maximum": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranking de jugadores.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "scope": "zone",
+                  "zone": "Santiago",
+                  "level": null,
+                  "total": 23,
+                  "players": [
+                    {
+                      "rank": 1,
+                      "id": "9d39cac8-e836-41c5-847b-bfb6459a9939",
+                      "name": "Juan Pérez",
+                      "photo_url": "https://res.cloudinary.com/padelhub/image/upload/padelhub_avatars/abc123.jpg",
+                      "level": "primera",
+                      "zone": "Santiago",
+                      "mmr": 1340,
+                      "matches_played": 12
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": { "description": "Error interno al obtener el leaderboard." }
         }
       }
     }
