@@ -91,7 +91,7 @@ export async function PATCH(
     ]);
 
     const newCount = match.match_players.length + 1;
-    let matchStatus = match.status;
+    let matchStatus: string = match.status;
     if (newCount >= maxPlayers) {
       await prisma.matches.update({
         where: { id: match.id },
