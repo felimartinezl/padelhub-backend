@@ -20,33 +20,39 @@ export async function POST(
     const { rut: id } = await context.params;
 
     // 1. Verificar que el usuario exista
-    const player = await prisma.users.findUnique({
-      where: { id },
-    });
+    let player;
+    try {
+      player = await prisma.users.findUnique({ where: { id } });
+    } catch (e: any) { e._step = "db_find"; throw e; }
 
     if (!player) {
       return NextResponse.json({ error: "Jugador no encontrado" }, { status: 404 });
     }
 
     // 2. Extraer el archivo enviado por el Frontend (FormData)
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
+    let formData, file;
+    try {
+      formData = await request.formData();
+      file = formData.get("file") as File;
+    } catch (e: any) { e._step = "formdata"; throw e; }
 
     if (!file) {
       return NextResponse.json({ error: "No se proporcionó ningún archivo de imagen" }, { status: 400 });
     }
 
     // 3. Convertir el archivo a un Buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer;
+    try {
+      const bytes = await file.arrayBuffer();
+      buffer = Buffer.from(bytes);
+    } catch (e: any) { e._step = "buffer"; throw e; }
 
-    // 4. SI EL USUARIO YA TENÍA FOTO, BORRAR LA ANTERIOR DE CLOUDINARY    //  
+    // 4. SI EL USUARIO YA TENÍA FOTO, BORRAR LA ANTERIOR DE CLOUDINARY
     if (player.photo_url) {
       try {
         const urlParts = player.photo_url.split("/");
         const fileNameWithExtension = urlParts[urlParts.length - 1];
         const publicId = `padelhub_avatars/${fileNameWithExtension.split(".")[0]}`;
-        
         await cloudinary.uploader.destroy(publicId);
       } catch (e) {
         console.log("No se pudo borrar la foto anterior en Cloudinary");
@@ -54,29 +60,31 @@ export async function POST(
     }
 
     // 5. Subir la nueva imagen a Cloudinary
-    const uploadResponse: any = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        { 
-          folder: "padelhub_avatars",
-          transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }]
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(buffer);
-    });
+    let uploadResponse: any;
+    try {
+      uploadResponse = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: "padelhub_avatars",
+            transformation: [{ width: 400, height: 400, crop: "fill", gravity: "face" }]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(buffer);
+      });
+    } catch (e: any) { e._step = "cloudinary_upload"; throw e; }
 
     const secureUrl = uploadResponse.secure_url;
 
-    // 6. Guardar la URL en la base de datos de Supabase usando Prisma
-    //  Modificado: Ahora actualiza el campo exacto 'photo_url'
-    await prisma.users.update({
-      where: { id: player.id },
-      data: {
-        photo_url: secureUrl, 
-      },
-    });
+    // 6. Guardar la URL en la base de datos
+    try {
+      await prisma.users.update({
+        where: { id: player.id },
+        data: { photo_url: secureUrl },
+      });
+    } catch (e: any) { e._step = "db_update"; throw e; }
 
     return NextResponse.json({
       message: "Foto de perfil actualizada con éxito",
@@ -84,7 +92,11 @@ export async function POST(
     }, { status: 200 });
 
   } catch (error: any) {
-    return NextResponse.json({ error: "Error al subir la imagen", details: error.message }, { status: 500 });
+    return NextResponse.json({
+      error: "Error al subir la imagen",
+      details: error.message,
+      step: error._step ?? "unknown",
+    }, { status: 500 });
   }
 }
 
