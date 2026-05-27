@@ -33,7 +33,7 @@ export async function POST(
     let formData, file;
     try {
       formData = await request.formData();
-      file = formData.get("file") as File;
+      file = (formData.get("photo") ?? formData.get("file")) as File;
     } catch (e: any) { e._step = "formdata"; throw e; }
 
     if (!file) {
