@@ -1,9 +1,25 @@
 import { prisma } from "./prisma";
+import type { user_level } from "@prisma/client";
 
 interface MmrResult {
   user_id: string;
   mmr_before: number;
   mmr_after: number;
+}
+
+// 7ma+ es el nivel más alto; 1ra es el más bajo (principiante)
+const MMR_THRESHOLDS: { level: user_level; min: number }[] = [
+  { level: "septima_mas", min: 1350 },
+  { level: "sexta",       min: 1250 },
+  { level: "quinta",      min: 1150 },
+  { level: "cuarta",      min: 1050 },
+  { level: "tercera",     min: 950  },
+  { level: "segunda",     min: 800  },
+  { level: "primera",     min: 0    },
+];
+
+function levelFromMMR(mmr: number): user_level {
+  return MMR_THRESHOLDS.find((t) => mmr >= t.min)?.level ?? "primera";
 }
 
 /**
@@ -61,7 +77,7 @@ export async function calculateAndStoreMMR(matchId: string): Promise<void> {
     ...results.map((r) =>
       prisma.users.update({
         where: { id: r.user_id },
-        data: { mmr: r.mmr_after, updated_at: new Date() },
+        data: { mmr: r.mmr_after, level: levelFromMMR(r.mmr_after), updated_at: new Date() },
       })
     ),
     ...results.map((r) =>
