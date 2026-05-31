@@ -1,0 +1,70 @@
+# ════════════════════════════════════════════════════════════════════════════
+# AP-01 | Throughput de login concurrente
+#
+# Pre-condición : BD con 500 usuarios (correr seed-load-test.ts primero)
+# Objetivo      : 100 solicitudes POST /api/auth/login concurrentes
+# Criterios     : P95 < 300 ms · tasa de error < 1% · sin bloqueos de BD
+#
+# Uso:
+#   npx artillery run artillery/AP-01-login-concurrente.yml -e local
+#   npx artillery run artillery/AP-01-login-concurrente.yml -e test
+# ════════════════════════════════════════════════════════════════════════════
+config:
+  environments:
+    local:
+      target: "http://localhost:3000"
+    test:
+      target: "http://localhost:3001"
+    production:
+      target: "https://padelhub-backend-phi.vercel.app"
+
+  plugins:
+    expect: {}
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # CSV con credenciales de 500 usuarios sembrados por seed-load-test.ts
+  payload:
+    path: "./data/test-users.csv"
+    fields:
+      - rut
+      - password
+    order: random        # cada VU toma una fila aleatoria
+    skipHeader: true
+
+  phases:
+    - name: "Calentamiento"
+      duration: 10
+      arrivalRate: 5
+
+    - name: "Rampa a 100 usuarios/seg"
+      duration: 20
+      arrivalRate: 5
+      rampTo: 100
+
+    - name: "Pico concurrente — 100 req/seg"
+      duration: 30
+      arrivalRate: 100
+
+  # Umbrales de aceptación (el test falla si no se cumplen)
+  ensure:
+    thresholds:
+      - http.response_time.p95: 300    # P95 < 300 ms
+    conditions:
+      - expression: "(counters['http.codes.200'] / counters['http.requests']) >= 0.99"
+        description: "Tasa de éxito >= 99% (error < 1%)"
+
+scenarios:
+  - name: "AP-01 | Login concurrente"
+    flow:
+      - post:
+          url: "/api/auth/login"
+          json:
+            rut: "{{ rut }}"
+            password: "{{ password }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "accessToken"
+            - hasProperty: "refreshToken"

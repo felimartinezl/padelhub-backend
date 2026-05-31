@@ -1,0 +1,103 @@
+# ════════════════════════════════════════════════════════════════════════════
+# MP-01 | Carga de listado con 10.000 partidos
+#
+# Pre-condición : 10.000 matches (club="LOAD_MP01") en BD → npm run seed:mp01
+#                 500 usuarios de carga en BD           → npm run seed:load
+# Objetivo      : GET /api/matches?page=N&limit=10&club=LOAD_MP01 con 50 VU/s
+# Criterios     : P95 < 500 ms · tasa de error < 1%
+#
+# Uso:
+#   npx artillery run artillery/MP-01-listado-paginado.yml -e local
+#   npx artillery run artillery/MP-01-listado-paginado.yml -e test
+#   npx artillery run artillery/MP-01-listado-paginado.yml -e production
+#
+# Para análisis de índices:
+#   node scripts/explain-matches-query.mjs
+# ════════════════════════════════════════════════════════════════════════════
+config:
+  environments:
+    local:
+      target: "http://localhost:3000"
+    test:
+      target: "http://localhost:3001"
+    production:
+      target: "https://padelhub-backend-phi.vercel.app"
+
+  plugins:
+    expect: {}
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Credenciales de 500 usuarios sembrados por seed:load
+  payload:
+    path: "./data/test-users.csv"
+    fields:
+      - rut
+      - password
+    order: random
+    skipHeader: true
+
+  phases:
+    - name: "Calentamiento"
+      duration: 10
+      arrivalRate: 5
+
+    - name: "Rampa a 50 VU/s"
+      duration: 20
+      arrivalRate: 5
+      rampTo: 50
+
+    - name: "Carga sostenida — 50 VU/s"
+      duration: 60
+      arrivalRate: 50
+
+  ensure:
+    thresholds:
+      - http.response_time.p95: 500     # P95 < 500 ms
+    conditions:
+      - expression: "(counters['http.codes.200'] / counters['http.requests']) >= 0.99"
+        description: "Tasa de éxito >= 99% (error rate < 1%)"
+
+scenarios:
+  - name: "MP-01 | Listado paginado con 10k matches"
+    flow:
+      # 1. Autenticación — GET /api/matches requiere Bearer token
+      - post:
+          url: "/api/auth/login"
+          json:
+            rut: "{{ rut }}"
+            password: "{{ password }}"
+          capture:
+            - json: "$.accessToken"
+              as: accessToken
+          expect:
+            - statusCode: 200
+
+      # 2. Página 1 — OFFSET 0, prueba índice desde inicio
+      - get:
+          url: "/api/matches?page=1&limit=10&club=LOAD_MP01&status=open"
+          headers:
+            Authorization: "Bearer {{ accessToken }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+            - hasProperty: "total"
+            - hasProperty: "pages"
+
+      # 3. Página media — OFFSET 2.490, prueba rendimiento con offset intermedio
+      - get:
+          url: "/api/matches?page=250&limit=10&club=LOAD_MP01&status=open"
+          headers:
+            Authorization: "Bearer {{ accessToken }}"
+          expect:
+            - statusCode: 200
+
+      # 4. Última página — OFFSET 9.990, prueba el caso más costoso de paginación
+      - get:
+          url: "/api/matches?page=1000&limit=10&club=LOAD_MP01&status=open"
+          headers:
+            Authorization: "Bearer {{ accessToken }}"
+          expect:
+            - statusCode: 200

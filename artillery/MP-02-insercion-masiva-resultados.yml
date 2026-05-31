@@ -1,0 +1,67 @@
+# ════════════════════════════════════════════════════════════════════════════
+# MP-02 | Inserción masiva de resultados
+#
+# Pre-condición : 100 matches en estado in_progress con 4 jugadores c/u
+#                 + CSV artillery/data/mp02-matches.csv → npm run seed:mp02
+# Objetivo      : 100 POST /api/matches/:id/result simultáneos a matches distintos
+# Criterios     : P99 < 1.000 ms · ≥ 99 de 100 retornan 201 · sin deadlocks
+#
+# Uso:
+#   npx artillery run artillery/MP-02-insercion-masiva-resultados.yml -e local
+#   npx artillery run artillery/MP-02-insercion-masiva-resultados.yml -e test
+#   npx artillery run artillery/MP-02-insercion-masiva-resultados.yml -e production
+#
+# IMPORTANTE: cada ejecución consume los 100 matches (quedan con resultado).
+# Para re-ejecutar: npm run seed:mp02  (recrea los matches y actualiza el CSV)
+# ════════════════════════════════════════════════════════════════════════════
+config:
+  environments:
+    local:
+      target: "http://localhost:3000"
+    test:
+      target: "http://localhost:3001"
+    production:
+      target: "https://padelhub-backend-phi.vercel.app"
+
+  plugins:
+    expect: {}
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Cada VU recibe su propio match_id (order: sequence garantiza sin repetición)
+  payload:
+    path: "./data/mp02-matches.csv"
+    fields:
+      - match_id
+      - submitted_by
+    order: sequence
+    skipHeader: true
+
+  phases:
+    # Dispara los 100 VUs en 1 segundo → efectivamente simultáneos
+    - name: "Ráfaga — 100 inserciones simultáneas"
+      duration: 1
+      arrivalCount: 100
+
+  ensure:
+    thresholds:
+      - http.response_time.p99: 1000    # P99 < 1.000 ms
+    conditions:
+      - expression: "(counters['http.codes.201'] / counters['http.requests']) >= 0.99"
+        description: "Al menos 99 de 100 inserciones deben retornar 201"
+
+scenarios:
+  - name: "MP-02 | POST resultado a match único"
+    flow:
+      - post:
+          url: "/api/matches/{{ match_id }}/result"
+          json:
+            submitted_by: "{{ submitted_by }}"
+            score_team_a: "6-3"
+            score_team_b: "3-6"
+            winner: "team_a"
+          expect:
+            - statusCode: 201
+            - hasProperty: "result"

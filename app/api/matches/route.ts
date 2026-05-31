@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getMatchWindow } from "@/lib/match-window";
+import { requireAuth } from "@/lib/auth-middleware";
 
 const MAX_PLAYERS: Record<string, number> = { doubles: 4, singles: 2 };
 
@@ -55,63 +56,80 @@ export async function POST(request: Request) {
 }
 
 // ==========================================
-// GET: Listar partidos abiertos (filtro por zona opcional)
+// GET: Listar partidos abiertos (filtros opcionales: zone, club, page, limit)
 // ==========================================
+function formatMatchRow(m: any) {
+  const maxPlayers  = MAX_PLAYERS[m.format] ?? 4;
+  const playerCount = m.match_players.length;
+  const spotsLeft   = maxPlayers - playerCount;
+  return {
+    id:           m.id,
+    club:         m.club,
+    format:       m.format,
+    status:       m.status,
+    match_date:   m.match_date,
+    match_time:   m.match_time,
+    zone:         m.users.zone,
+    organizer:    m.users,
+    players:      m.match_players.map((mp: any) => ({
+      ...mp.users,
+      team:   mp.team,
+      joined: mp.joined_at,
+    })),
+    max_players:  maxPlayers,
+    player_count: playerCount,
+    spots_left:   spotsLeft,
+    is_full:      spotsLeft === 0,
+    match_window: getMatchWindow(m.match_date, m.match_time),
+  };
+}
+
 export async function GET(request: Request) {
   try {
+    const { errorResponse } = requireAuth(request);
+    if (errorResponse) return errorResponse;
+
     const { searchParams } = new URL(request.url);
-    const zone   = searchParams.get("zone");
-    const status = searchParams.get("status") || "open";
+    const zone    = searchParams.get("zone");
+    const club    = searchParams.get("club");
+    const status  = searchParams.get("status") ?? "open";
+    const pageStr = searchParams.get("page");
+    const limStr  = searchParams.get("limit");
+    const page    = pageStr ? Math.max(1, parseInt(pageStr, 10)) : null;
+    const limit   = limStr  ? Math.max(1, Math.min(100, parseInt(limStr, 10))) : null;
 
-    const matches = await prisma.matches.findMany({
-      where: {
-        status: status as any,
-        ...(zone && {
-          users: { zone: { equals: zone, mode: "insensitive" } },
-        }),
+    const where: any = {
+      status: status as any,
+      ...(zone && { users: { zone: { equals: zone, mode: "insensitive" } } }),
+      ...(club  && { club }),
+    };
+
+    const include = {
+      users:         { select: { id: true, name: true, level: true, zone: true } },
+      match_players: {
+        where:   { status: "confirmed" as const },
+        include: { users: { select: { id: true, name: true, level: true, photo_url: true } } },
       },
-      include: {
-        users: {
-          select: { id: true, name: true, level: true, zone: true },
-        },
-        match_players: {
-          where:  { status: "confirmed" },
-          include: {
-            users: { select: { id: true, name: true, level: true, photo_url: true } },
-          },
-        },
-      },
-      orderBy: { match_date: "asc" },
-    });
+    };
 
-    const result = matches.map((m) => {
-      const maxPlayers   = MAX_PLAYERS[m.format] ?? 4;
-      const playerCount  = m.match_players.length;
-      const spotsLeft    = maxPlayers - playerCount;
+    const orderBy = { match_date: "asc" as const };
 
-      return {
-        id:           m.id,
-        club:         m.club,
-        format:       m.format,
-        status:       m.status,
-        match_date:   m.match_date,
-        match_time:   m.match_time,
-        zone:         m.users.zone,
-        organizer:    m.users,
-        players:      m.match_players.map((mp) => ({
-          ...mp.users,
-          team:   mp.team,
-          joined: mp.joined_at,
-        })),
-        max_players:  maxPlayers,
-        player_count: playerCount,
-        spots_left:   spotsLeft,
-        is_full:      spotsLeft === 0,
-        match_window: getMatchWindow(m.match_date, m.match_time),
-      };
-    });
+    if (page !== null && limit !== null) {
+      const [total, rows] = await Promise.all([
+        prisma.matches.count({ where }),
+        prisma.matches.findMany({ where, include, orderBy, skip: (page - 1) * limit, take: limit }),
+      ]);
+      return NextResponse.json({
+        data:  rows.map(formatMatchRow),
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      });
+    }
 
-    return NextResponse.json(result);
+    const rows = await prisma.matches.findMany({ where, include, orderBy });
+    return NextResponse.json(rows.map(formatMatchRow));
   } catch (error: any) {
     return NextResponse.json(
       { error: "Error al obtener los partidos", details: error.message },

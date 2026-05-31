@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 jest.mock("../lib/prisma", () => ({
   prisma: {
     users: {
-      findFirst: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
     },
   },
@@ -15,12 +15,7 @@ jest.mock("cloudinary", () => ({
     config: jest.fn(),
     uploader: {
       destroy: jest.fn().mockResolvedValue({ result: "ok" }),
-      upload_stream: jest.fn().mockImplementation((options, callback) => {
-        if (callback) {
-          callback(null, { secure_url: "https://res.cloudinary.com/mock-image.jpg" });
-        }
-        return { end: jest.fn() };
-      }),
+      upload: jest.fn().mockResolvedValue({ secure_url: "https://res.cloudinary.com/mock-image.jpg" }),
     },
   },
 }));
@@ -30,16 +25,15 @@ describe("📸 PRUEBAS UNITARIAS - MULTIMEDIA (CLOUDINARY)", () => {
     jest.clearAllMocks();
   });
 
-  it("Debería retornar status 400 en POST si no se envía ningún archivo", async () => {
-    (prisma.users.findFirst as jest.Mock).mockResolvedValue({ id: "user-id", rut: 12345678 });
+  it("Debería retornar status 400 en POST si no se envía el campo image", async () => {
+    (prisma.users.findUnique as jest.Mock).mockResolvedValue({ id: "user-id", rut: 12345678, photo_url: null });
 
-    const formData = new FormData();
     const req = new Request("http://localhost:3000/api/users/12345678/profile/photo", {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}), // sin campo image
     });
-    
-    // 🌟 MOCK DE PARAMS SEGURO PARA JEST
+
     const context = { params: Promise.resolve({ rut: "12345678" }) };
 
     const res = await uploadPhotoHandler(req, context as any);
@@ -47,16 +41,15 @@ describe("📸 PRUEBAS UNITARIAS - MULTIMEDIA (CLOUDINARY)", () => {
   });
 
   it("Debería retornar 200 al eliminar exitosamente la foto de perfil", async () => {
-    (prisma.users.findFirst as jest.Mock).mockResolvedValue({ 
-      id: "user-id", 
-      rut: 12345678, 
-      photo_url: "https://res.cloudinary.com/folder/sample.jpg" 
+    (prisma.users.findUnique as jest.Mock).mockResolvedValue({
+      id: "user-id",
+      rut: 12345678,
+      photo_url: "https://res.cloudinary.com/folder/sample.jpg",
     });
     (prisma.users.update as jest.Mock).mockResolvedValue({});
 
     const req = new Request("http://localhost:3000/api/users/12345678/profile/photo", { method: "DELETE" });
-    
-    // 🌟 MOCK DE PARAMS SEGURO PARA JEST
+
     const context = { params: Promise.resolve({ rut: "12345678" }) };
 
     const res = await deletePhotoHandler(req, context as any);

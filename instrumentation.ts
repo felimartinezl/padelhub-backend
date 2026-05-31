@@ -1,4 +1,9 @@
 export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') {
+    console.log("[CRON] Cron deshabilitado en entorno no-Node.js");
+    return;
+  }
+
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const cron = (await import('node-cron')).default;
     const fs = await import('fs');

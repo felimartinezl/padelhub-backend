@@ -1,78 +1,67 @@
 import { NextResponse } from "next/server";
-// Ajusta la importación según dónde tengas instanciado tu PrismaClient
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth-middleware";
+import {
+  getModelNames,
+  buildBackupMetadata,
+  serializeBackup,
+  generateBackupFilename,
+} from "@/lib/backup";
 
-const prisma = new PrismaClient();
+export async function GET(request: Request) {
+  const { payload, errorResponse } = requireAuth(request);
+  if (errorResponse) return errorResponse;
 
-export async function GET() {
-  try {
-    // 1. Obtener de forma dinámica los nombres de todos los modelos (tablas) registrados en Prisma
-    // Esto evita tener que escribir prisma.user.findMany(), prisma.match.findMany(), etc. uno por uno.
-    const modelNames = Object.keys(prisma).filter(
-      (key) => !key.startsWith("_") && !key.startsWith("$")
+  if (payload.role !== "admin") {
+    return NextResponse.json(
+      { error: "Acceso restringido a administradores" },
+      { status: 403 }
     );
+  }
 
-    const fullBackupData: Record<string, any> = {};
-    let totalRecordsCount = 0;
+  try {
+    const modelNames = getModelNames(prisma as any);
+    const database: Record<string, any[]> = {};
 
-    // 2. Recorrer cada tabla, extraer sus filas y meterlas al objeto de respaldo
     for (const model of modelNames) {
       try {
-        // Ejecuta dinámicamente un .findMany() sobre la entidad actual
-        const tableData = await (prisma as any)[model].findMany();
-        
-        fullBackupData[model] = {
-          record_count: tableData.length,
-          records: tableData
-        };
-        
-        totalRecordsCount += tableData.length;
-      } catch (tableError) {
-        console.error(`Error respaldando la tabla ${model}:`, tableError);
-        fullBackupData[model] = {
-          error: "No se pudo extraer la información de esta tabla.",
-          records: []
-        };
+        database[model] = await (prisma as any)[model].findMany();
+      } catch {
+        database[model] = [];
       }
     }
 
-    // 3. Estructurar el JSON maestro final
     const masterBackup = {
-      backup_info: {
-        project: "PadelHub Backend",
-        environment: process.env.NODE_ENV || "production",
-        backup_date: new Date().toISOString(),
-        exported_entities_count: modelNames.length,
-        total_records_exported: totalRecordsCount,
-        database_provider: "PostgreSQL (Supabase)"
-      },
-      database: fullBackupData
+      backup_info: buildBackupMetadata("MANUAL_HTTP_BACKUP"),
+      database,
     };
 
-    // 4. Convertir a String JSON tabulado (legible y bonito)
-    const jsonString = JSON.stringify(masterBackup, null, 2);
-    
-    // 5. Nombre dinámico con la fecha de hoy
-    const today = new Date().toISOString().split('T')[0];
-    const fileName = `padelhub_FULL_backup_${today}.json`;
+    const json     = serializeBackup(masterBackup);
+    const filename = generateBackupFilename("backup");
 
-    // 6. Enviar el archivo forzando la descarga en el cliente (Navegador o Postman)
-    return new NextResponse(jsonString, {
+    return new NextResponse(json, {
       status: 200,
       headers: {
-        "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Type":        "application/json",
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
-
   } catch (error) {
-    console.error("Error crítico generando el backup completo:", error);
+    console.error("Error crítico generando el backup:", error);
     return NextResponse.json(
-      { error: "Error interno crítico al procesar el respaldo total de la base de datos." },
+      { error: "Error interno crítico al procesar el respaldo." },
       { status: 500 }
     );
-  } finally {
-    // Desconectamos limpiamente para no dejar colgada la conexión del pooler
-    await prisma.$disconnect();
   }
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin":  "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    },
+  });
 }

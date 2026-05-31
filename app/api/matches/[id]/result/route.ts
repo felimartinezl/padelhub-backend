@@ -86,6 +86,12 @@ export async function POST(
       { status: 201 }
     );
   } catch (error: any) {
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Ya existe un resultado para este partido" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "Error al registrar el resultado", details: error.message },
       { status: 500 }

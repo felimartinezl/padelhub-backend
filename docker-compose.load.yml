@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.test         # apunta a Supabase test — sin BD local
+    environment:
+      # PgBouncer (port 6543) no soporta prepared statements de Prisma en modo producción.
+      # Se sobreescribe DATABASE_URL con la conexión directa (port 5432), igual que
+      # hace playwright.config.ts para el webServer de los tests E2E.
+      DATABASE_URL: "postgresql://postgres:Jk0h0XAPnzCu0TGV@db.esbtsoizzexxuygjcmql.supabase.co:5432/postgres"
+    command: npm run start # producción, no dev (más realista para carga)

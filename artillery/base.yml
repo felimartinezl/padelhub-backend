@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────
+# Configuración base compartida por todos los escenarios
+# Cada archivo de prueba la importa con: config: !import ./base.yml
+# ─────────────────────────────────────────────────────────────
+config:
+  target: "{{ $env.ARTILLERY_TARGET }}"   # sobrescribir con env var o -t flag
+  environments:
+    local:
+      target: "http://localhost:3000"
+    test:
+      target: "http://localhost:3001"
+    production:
+      target: "https://padelhub-backend-phi.vercel.app"
+
+  plugins:
+    expect: {}                             # assertions integradas en Artillery 2.x
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Fases por defecto — cada escenario puede sobreescribirlas
+  phases:
+    - name: "Calentamiento"
+      duration: 10
+      arrivalRate: 1
+    - name: "Carga sostenida"
+      duration: 30
+      arrivalRate: 5
+    - name: "Pico"
+      duration: 20
+      arrivalRate: 20
