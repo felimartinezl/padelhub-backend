@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calculateAndStoreMMR } from "@/lib/mmr";
+import { sendPushNotifications } from "@/lib/notifications";
 
 export async function POST(
   request: Request,
@@ -87,6 +88,15 @@ export async function POST(
     } catch (err: any) {
       console.error("[MMR] Error al calcular MMR:", err?.message ?? err);
     }
+
+    const allPlayerIds = match.match_players.map((p) => p.user_id);
+    const winnerLabel = result.winner === "team_a" ? "Equipo A" : result.winner === "team_b" ? "Equipo B" : "Empate";
+
+    sendPushNotifications(allPlayerIds, {
+      title: "Resultado confirmado",
+      body: `Partido en ${match.club} finalizado. Ganador: ${winnerLabel} (${result.score_team_a} - ${result.score_team_b})`,
+      data: { match_id, type: "result_confirmed", winner: result.winner },
+    }).catch(() => {});
 
     return NextResponse.json({
       message: "Resultado confirmado. ¡Partido finalizado!",

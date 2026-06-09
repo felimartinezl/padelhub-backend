@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendPushNotifications } from "@/lib/notifications";
 
 const MAX_PLAYERS: Record<string, number> = { doubles: 4, singles: 2 };
 
@@ -67,9 +68,18 @@ export async function POST(
       return NextResponse.json({ error: "Jugador no encontrado" }, { status: 404 });
     }
 
-    const invitation = await prisma.match_invitations.create({
-      data: { match_id, invited_by, user_id, status: "pending" },
-    });
+    const [invitation, inviter] = await Promise.all([
+      prisma.match_invitations.create({
+        data: { match_id, invited_by, user_id, status: "pending" },
+      }),
+      prisma.users.findUnique({ where: { id: invited_by }, select: { name: true } }),
+    ]);
+
+    sendPushNotifications([user_id], {
+      title: "Nueva invitación a partido",
+      body: `${inviter?.name ?? "Un jugador"} te invitó a un partido en ${match.club}`,
+      data: { match_id, type: "invitation" },
+    }).catch(() => {});
 
     return NextResponse.json(
       { message: "Invitación enviada correctamente", invitation },

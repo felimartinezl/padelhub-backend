@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendPushNotifications } from "@/lib/notifications";
 
 const VALID_WINNERS = ["team_a", "team_b", "draw"];
 
@@ -77,6 +78,16 @@ export async function POST(
         confirmed: false,
       },
     });
+
+    const otherTeamIds = match.match_players
+      .filter((p) => p.user_id !== submitted_by)
+      .map((p) => p.user_id);
+
+    sendPushNotifications(otherTeamIds, {
+      title: "Resultado pendiente de confirmación",
+      body: `Se registró un resultado en tu partido de ${match.club}. Por favor confírmalo.`,
+      data: { match_id, type: "result_pending" },
+    }).catch(() => {});
 
     return NextResponse.json(
       {
