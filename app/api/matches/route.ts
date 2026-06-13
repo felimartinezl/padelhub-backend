@@ -10,6 +10,9 @@ const MAX_PLAYERS: Record<string, number> = { doubles: 4, singles: 2 };
 // ==========================================
 export async function POST(request: Request) {
   try {
+    const { errorResponse } = requireAuth(request);
+    if (errorResponse) return errorResponse;
+
     const body = await request.json();
     const { organizer_id, club, format, match_date, match_time } = body;
 
