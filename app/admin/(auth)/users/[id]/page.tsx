@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditForm from "./edit-form";
+import SuspendForm from "./suspend-form";
 
 export default async function EditUserPage({
   params,
@@ -22,6 +23,7 @@ export default async function EditUserPage({
       level: true,
       role: true,
       is_active: true,
+      suspended_until: true,
       mmr: true,
       created_at: true,
     },
@@ -73,6 +75,16 @@ export default async function EditUserPage({
           }}
         />
       </div>
+
+      {user.role !== "admin" && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-4">
+          <SuspendForm
+            userId={user.id}
+            isActive={user.is_active}
+            suspendedUntil={user.suspended_until}
+          />
+        </div>
+      )}
     </div>
   );
 }

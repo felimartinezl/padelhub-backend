@@ -56,3 +56,49 @@ export async function updateUserAction(
   revalidatePath("/admin/users");
   redirect("/admin/users");
 }
+
+export async function suspendUserAction(
+  _prevState: { error?: string; success?: string } | null,
+  formData: FormData
+): Promise<{ error?: string; success?: string }> {
+  const admin = await ensureAdmin();
+
+  const userId = formData.get("user_id") as string;
+  const days = parseInt(formData.get("days") as string, 10);
+
+  if (!userId) return { error: "ID de usuario inválido" };
+  if (isNaN(days) || days < 1 || days > 365) return { error: "Los días deben ser entre 1 y 365" };
+  if (userId === admin.id) return { error: "No puedes suspenderte a ti mismo" };
+
+  const target = await prisma.users.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!target) return { error: "Usuario no encontrado" };
+  if (target.role === "admin") return { error: "No puedes suspender a otro administrador" };
+
+  const suspendedUntil = new Date();
+  suspendedUntil.setDate(suspendedUntil.getDate() + days);
+
+  await prisma.users.update({
+    where: { id: userId },
+    data: { is_active: false, suspended_until: suspendedUntil, updated_at: new Date() },
+  });
+
+  revalidatePath(`/admin/users/${userId}`);
+  return { success: `Usuario suspendido por ${days} día${days > 1 ? "s" : ""} hasta el ${suspendedUntil.toLocaleDateString("es-CL")}` };
+}
+
+export async function liftSuspensionAction(formData: FormData): Promise<void> {
+  await ensureAdmin();
+
+  const userId = formData.get("user_id") as string;
+  if (!userId) return;
+
+  await prisma.users.update({
+    where: { id: userId },
+    data: { is_active: true, suspended_until: null, updated_at: new Date() },
+  });
+
+  revalidatePath(`/admin/users/${userId}`);
+}
