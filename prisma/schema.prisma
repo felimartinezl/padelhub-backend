@@ -65,6 +65,7 @@ model matches {
   mmr_history       mmr_history[]
   match_invitations match_invitations[]
   match_messages    match_messages[]
+  match_ratings     match_ratings[]
 
   @@index([match_date], map: "idx_matches_date")
   @@index([organizer_id], map: "idx_matches_organizer")
@@ -131,8 +132,9 @@ model users {
   zone           String           @db.VarChar(100)
   mmr            Int              @default(1000)
   role           user_role        @default(player)
-  is_active      Boolean          @default(true)
-  suspended_until DateTime?       @db.Timestamp(6)
+  is_active                Boolean          @default(true)
+  suspended_until          DateTime?        @db.Timestamp(6)
+  notification_preferences Json?            @db.JsonB
   created_at     DateTime         @default(now()) @db.Timestamp(6)
   updated_at     DateTime         @default(now()) @db.Timestamp(6)
   match_players        match_players[]
@@ -145,6 +147,9 @@ model users {
   invitations_received match_invitations[] @relation("invitations_received")
   device_tokens        device_tokens[]
   match_messages       match_messages[]
+  notifications        notifications[]
+  ratings_given        match_ratings[]     @relation("ratings_given")
+  ratings_received     match_ratings[]     @relation("ratings_received")
 
   @@unique([rut, dv_rut], map: "uq_rut")
   @@index([is_active], map: "idx_users_active")
@@ -204,6 +209,38 @@ model match_messages {
 
   @@index([match_id, created_at(sort: Desc)], map: "idx_match_messages_match_date")
   @@index([user_id], map: "idx_match_messages_user")
+}
+
+model notifications {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  title      String    @db.VarChar(200)
+  body       String    @db.VarChar(500)
+  type       String    @db.VarChar(50)
+  data       Json?
+  read_at    DateTime? @db.Timestamp(6)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "idx_notifications_user")
+  @@index([user_id, read_at],                map: "idx_notifications_unread")
+}
+
+model match_ratings {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  match_id   String   @db.Uuid
+  rater_id   String   @db.Uuid
+  rated_id   String   @db.Uuid
+  stars      Int
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  matches    matches  @relation(fields: [match_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rater      users    @relation("ratings_given",    fields: [rater_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rated      users    @relation("ratings_received", fields: [rated_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([match_id, rater_id, rated_id], map: "uq_match_rating")
+  @@index([rated_id],  map: "idx_ratings_rated")
+  @@index([match_id],  map: "idx_ratings_match")
+  @@index([rater_id],  map: "idx_ratings_rater")
 }
 
 model match_invitations {

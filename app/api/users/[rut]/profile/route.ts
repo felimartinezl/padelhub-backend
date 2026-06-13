@@ -26,11 +26,20 @@ export async function GET(
       );
     }
 
-    const totalMatches = await prisma.match_players.count({
-      where: { user_id: player.id },
-    });
+    const [totalMatches, ratingAgg] = await Promise.all([
+      prisma.match_players.count({ where: { user_id: player.id } }),
+      prisma.match_ratings.aggregate({
+        where: { rated_id: player.id },
+        _avg:   { stars: true },
+        _count: { stars: true },
+      }),
+    ]);
 
     const { password_hash, ...userResponse } = player;
+
+    const rating_average = ratingAgg._avg.stars !== null
+      ? Math.round(ratingAgg._avg.stars * 10) / 10
+      : null;
 
     return NextResponse.json(
       {
@@ -45,7 +54,11 @@ export async function GET(
           photo_url:  userResponse.photo_url,
           created_at: userResponse.created_at,
         },
-        stats: { matches_played: totalMatches },
+        stats: {
+          matches_played:  totalMatches,
+          rating_average,
+          rating_count: ratingAgg._count.stars,
+        },
       },
       { status: 200 }
     );
