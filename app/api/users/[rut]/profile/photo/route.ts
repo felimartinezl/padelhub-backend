@@ -9,10 +9,11 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function findUser(rut: string) {
-  const num = parseInt(rut);
-  if (isNaN(num)) return null;
-  return prisma.users.findFirst({ where: { rut: num } });
+  const where = UUID_REGEX.test(rut) ? { id: rut } : { rut: parseInt(rut) };
+  return prisma.users.findFirst({ where });
 }
 
 // POST /api/users/{rut}/profile/photo
