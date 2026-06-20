@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PadelHub — Prototipo</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #4f46e5;
+    --accent2: #7c3aed;
+    --bg: #0a0a12;
+    --bg2: #11111e;
+    --bg3: #191928;
+    --bg4: #21213a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(79,70,229,0.4);
+    --text: #f0f0ff;
+    --text2: #9090bb;
+    --text3: #5555778;
+    --green: #22c55e;
+    --red: #ef4444;
+    --gold: #f59e0b;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
+  /* ── DEVICE SHELL ── */
+  .device { width: 390px; height: 844px; background: var(--bg); border-radius: 48px; border: 8px solid #1e1e2e; box-shadow: 0 0 0 1px #2a2a40, 0 40px 80px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.04); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 120px; height: 34px; background: #0a0a12; border-radius: 0 0 24px 24px; z-index: 100; }
+  .status-bar { height: 44px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 24px 8px; flex-shrink: 0; z-index: 10; position: relative; }
+  .status-time { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; color: var(--text); }
+  .status-icons { display: flex; gap: 5px; align-items: center; }
+  .si { height: 10px; background: var(--text); border-radius: 2px; opacity: .9; }
+
+  /* ── SCREENS ── */
+  .screen { position: absolute; inset: 0; padding-top: 44px; background: var(--bg); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; transform: translateX(30px); overflow: hidden; }
+  .screen.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+  .screen.back { transform: translateX(-30px); }
+  .scroll-area { flex: 1; overflow-y: auto; scrollbar-width: none; }
+  .scroll-area::-webkit-scrollbar { display: none; }
+
+  /* ── NAV BAR ── */
+  .nav-bar { height: 72px; background: var(--bg2); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-around; padding: 0 8px 8px; flex-shrink: 0; }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 16px; border-radius: 12px; cursor: pointer; transition: all .2s; flex: 1; }
+  .nav-item:hover { background: rgba(255,255,255,0.04); }
+  .nav-item.active .nav-icon { color: var(--accent); }
+  .nav-item.active .nav-label { color: var(--accent); }
+  .nav-icon { font-size: 20px; color: var(--text2); transition: color .2s; }
+  .nav-label { font-size: 10px; color: var(--text2); font-weight: 500; transition: color .2s; }
+  .nav-item.active .nav-dot { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; margin-top: -2px; }
+
+  /* ── TOP BAR ── */
+  .top-bar { padding: 12px 20px 8px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .top-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--text); }
+  .top-sub { font-size: 13px; color: var(--text2); margin-top: 1px; }
+  .back-btn { width: 36px; height: 36px; background: var(--bg3); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border); font-size: 16px; }
+
+  /* ── COMPONENTS ── */
+  .card { background: var(--bg3); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .pill-purple { background: rgba(79,70,229,0.2); color: #a5b4fc; }
+  .pill-green  { background: rgba(34,197,94,0.15); color: #86efac; }
+  .pill-amber  { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .pill-red    { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .pill-gray   { background: rgba(255,255,255,0.07); color: var(--text2); }
+
+  .btn { width: 100%; padding: 14px; border-radius: 14px; border: none; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #4338ca; transform: translateY(-1px); }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-ghost { background: var(--bg4); color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--bg3); color: var(--text); }
+
+  .input-group { margin-bottom: 14px; }
+  .input-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; font-weight: 500; }
+  .input-field { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; transition: border-color .2s; }
+  .input-field:focus { border-color: var(--accent); }
+  .input-field::placeholder { color: var(--text2); }
+
+  .avatar { border-radius: 14px; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 700; color: #fff; flex-shrink: 0; }
+
+  /* ── DIVIDER ── */
+  .divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 12px; color: var(--text2); }
+
+  /* ── MMR BAR ── */
+  .mmr-bar { background: linear-gradient(135deg, rgba(79,70,229,0.15), rgba(124,58,237,0.1)); border: 1px solid var(--border2); border-radius: var(--radius); padding: 16px; display: flex; align-items: center; gap: 16px; }
+  .mmr-num { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: var(--accent); letter-spacing: -1px; }
+
+  /* ── MINI BARS CHART ── */
+  .bars-chart { display: flex; align-items: flex-end; gap: 5px; height: 52px; }
+  .bar { border-radius: 4px 4px 0 0; transition: height .3s; }
+
+  /* ── PLAYER CARD ── */
+  .player-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all .2s; margin-bottom: 8px; }
+  .player-card:hover { border-color: rgba(79,70,229,0.4); background: var(--bg4); }
+  .player-card.highlighted { border-color: var(--accent); background: rgba(79,70,229,0.08); }
+
+  /* ── RANK ITEM ── */
+  .rank-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; width: 28px; text-align: center; }
+
+  /* ── FORMAT OPTION ── */
+  .format-opt { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; transition: all .2s; }
+  .format-opt.selected { border-color: var(--accent); background: rgba(79,70,229,0.1); }
+
+  /* ── SLOT ── */
+  .slot { flex: 1; background: var(--bg3); border: 1px dashed var(--border); border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; transition: all .2s; }
+  .slot.filled { border-style: solid; border-color: var(--accent); background: rgba(79,70,229,0.08); }
+  .slot:hover { border-color: rgba(79,70,229,0.5); }
+
+  /* ── SECTION LABEL ── */
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--text2); font-weight: 600; margin-bottom: 10px; }
+
+  /* ── TOAST ── */
+  .toast { position: absolute; bottom: 90px; left: 20px; right: 20px; background: var(--green); color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; z-index: 1000; opacity: 0; transform: translateY(10px); transition: all .3s; pointer-events: none; text-align: center; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp .35s ease forwards; }
+  .fade-up-1 { animation: fadeUp .35s .05s ease both; }
+  .fade-up-2 { animation: fadeUp .35s .1s ease both; }
+  .fade-up-3 { animation: fadeUp .35s .15s ease both; }
+  .fade-up-4 { animation: fadeUp .35s .2s ease both; }
+  .fade-up-5 { animation: fadeUp .35s .25s ease both; }
+
+  /* ── MATCH % ring ── */
+  .match-ring { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .ring-high { background: conic-gradient(#22c55e 0% 98%, var(--bg4) 98%); color: #86efac; }
+  .ring-mid  { background: conic-gradient(#f59e0b 0% 72%, var(--bg4) 72%); color: #fcd34d; }
+  .ring-inner { width: 34px; height: 34px; background: var(--bg3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+
+  /* ── HOME QUICK ACTIONS ── */
+  .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .quick-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all .2s; }
+  .quick-card:hover { border-color: rgba(79,70,229,0.4); background: var(--bg4); transform: translateY(-2px); }
+  .quick-icon { font-size: 24px; margin-bottom: 8px; }
+  .quick-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .quick-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  /* ── UPCOMING CARD ── */
+  .upcoming-card { background: linear-gradient(135deg, rgba(79,70,229,0.2), rgba(124,58,237,0.1)); border: 1px solid var(--border2); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; cursor: pointer; }
+
+  /* ── NOTIFICATION DOT ── */
+  .notif-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; position: absolute; top: 6px; right: 6px; }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="notch"></div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="si" style="width:12px"></div>
+      <div class="si" style="width:8px"></div>
+      <div class="si" style="width:22px;height:12px;border-radius:3px"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: LOGIN ═══════════════ -->
+  <div class="screen active" id="screen-login" style="padding:0;justify-content:center;">
+    <div style="padding:0 28px;flex:1;display:flex;flex-direction:column;justify-content:center;">
+      <div class="fade-up" style="text-align:center;margin-bottom:40px;">
+        <div style="width:72px;height:72px;background:var(--accent);border-radius:22px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+          <span style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:#fff;">H</span>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--text);">PadelHub</div>
+        <div style="font-size:14px;color:var(--text2);margin-top:4px;">Encuentra tu próximo partido</div>
+      </div>
+
+      <div class="fade-up-1">
+        <div style="display:flex;background:var(--bg3);border-radius:14px;padding:4px;margin-bottom:20px;border:1px solid var(--border);">
+          <div id="tab-login" style="flex:1;text-align:center;padding:9px;border-radius:10px;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;" onclick="switchTab('login')">Iniciar sesión</div>
+          <div id="tab-register" style="flex:1;text-align:center;padding:9px;border-radius:10px;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;" onclick="switchTab('register')">Registrarse</div>
+        </div>
+
+        <div id="form-login">
+          <div class="input-group">
+            <div class="input-label">Teléfono</div>
+            <input class="input-field" type="tel" placeholder="+56 9 1234 5678" value="+56 9 8765 4321">
+          </div>
+          <div class="input-group">
+            <div class="input-label">Contraseña</div>
+            <input class="input-field" type="password" placeholder="••••••••" value="12345678">
+          </div>
+          <div style="text-align:right;margin-bottom:16px;"><span style="font-size:12px;color:var(--accent);cursor:pointer;">¿Olvidaste tu contraseña?</span></div>
+          <button class="btn btn-primary" onclick="goTo('home')">Entrar</button>
+        </div>
+
+        <div id="form-register" style="display:none;">
+          <div class="input-group">
+            <div class="input-label">Nombre completo</div>
+            <input class="input-field" type="text" placeholder="Tu nombre">
+          </div>
+          <div class="input-group">
+            <div class="input-label">Teléfono</div>
+            <input class="input-field" type="tel" placeholder="+56 9 1234 5678">
+          </div>
+          <div class="input-group">
+            <div class="input-label">Contraseña</div>
+            <input class="input-field" type="password" placeholder="••••••••">
+          </div>
+          <button class="btn btn-primary" onclick="goTo('home')" style="margin-top:4px;">Crear cuenta</button>
+        </div>
+
+        <div class="divider"><div class="divider-line"></div><div class="divider-text">o continúa con</div><div class="divider-line"></div></div>
+        <button class="btn btn-ghost" onclick="goTo('home')">
+          <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
+            <span style="width:16px;height:16px;background:#25d366;border-radius:50%;display:inline-block;"></span>
+            Continuar con WhatsApp
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: HOME ═══════════════ -->
+  <div class="screen" id="screen-home">
+    <div class="top-bar" style="padding-top:14px;">
+      <div>
+        <div class="top-title">Hola, Felipe 👋</div>
+        <div class="top-sub">Valparaíso · MMR 1248</div>
+      </div>
+      <div style="position:relative;">
+        <div style="width:40px;height:40px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;" onclick="goTo('perfil')">FM</div>
+      </div>
+    </div>
+
+    <div class="scroll-area" style="padding:0 20px 20px;">
+      <!-- MMR snapshot -->
+      <div class="mmr-bar fade-up" style="margin-bottom:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px;">Tu MMR</div>
+          <div class="mmr-num">1 248</div>
+          <div style="font-size:12px;color:var(--text2);">#14 en Valparaíso</div>
+        </div>
+        <div style="margin-left:auto;">
+          <div class="bars-chart">
+            <div class="bar" style="flex:1;height:28px;background:rgba(79,70,229,0.4);"></div>
+            <div class="bar" style="flex:1;height:20px;background:rgba(79,70,229,0.4);"></div>
+            <div class="bar" style="flex:1;height:34px;background:rgba(79,70,229,0.5);"></div>
+            <div class="bar" style="flex:1;height:26px;background:rgba(79,70,229,0.4);"></div>
+            <div class="bar" style="flex:1;height:38px;background:rgba(79,70,229,0.6);"></div>
+            <div class="bar" style="flex:1;height:36px;background:rgba(79,70,229,0.6);"></div>
+            <div class="bar" style="flex:1;height:44px;background:var(--accent);"></div>
+          </div>
+          <div style="font-size:10px;color:var(--green);text-align:right;margin-top:4px;font-weight:600;">▲ +127 este mes</div>
+        </div>
+      </div>
+
+      <!-- Próximo partido -->
+      <div class="section-label fade-up-1">Próximo partido</div>
+      <div class="upcoming-card fade-up-1" onclick="goTo('crear')">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span class="pill pill-purple">Dobles · Confirmado</span>
+          <span style="font-size:12px;color:var(--text2);">Sáb 29 Mar</span>
+        </div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Club Pádel Viña del Mar</div>
+        <div style="font-size:13px;color:var(--text2);">10:00 · Cancha 3</div>
+        <div style="display:flex;gap:6px;margin-top:12px;">
+          <div style="display:flex;align-items:center;gap:6px;flex:1;background:rgba(0,0,0,0.2);border-radius:8px;padding:6px 10px;">
+            <div class="avatar" style="width:24px;height:24px;background:var(--accent);font-size:9px;border-radius:6px;">FM</div>
+            <div class="avatar" style="width:24px;height:24px;background:#059669;font-size:9px;border-radius:6px;">MR</div>
+            <span style="font-size:11px;color:var(--text2);">vs</span>
+            <div class="avatar" style="width:24px;height:24px;background:#854d0e;font-size:9px;border-radius:6px;">AP</div>
+            <div class="avatar" style="width:24px;height:24px;background:#7c3aed;font-size:9px;border-radius:6px;">JV</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acciones rápidas -->
+      <div class="section-label fade-up-2" style="margin-top:4px;">Acciones rápidas</div>
+      <div class="quick-grid fade-up-2">
+        <div class="quick-card" onclick="goTo('crear')">
+          <div class="quick-icon">🏓</div>
+          <div class="quick-title">Crear partido</div>
+          <div class="quick-sub">Organiza un juego</div>
+        </div>
+        <div class="quick-card" onclick="goTo('matchmaking')">
+          <div class="quick-icon">🎯</div>
+          <div class="quick-title">Buscar rival</div>
+          <div class="quick-sub">Matchmaking MMR</div>
+        </div>
+        <div class="quick-card" onclick="goTo('ranking')">
+          <div class="quick-icon">🏆</div>
+          <div class="quick-title">Ranking</div>
+          <div class="quick-sub">Top Valparaíso</div>
+        </div>
+        <div class="quick-card" onclick="goTo('perfil')">
+          <div class="quick-icon">📊</div>
+          <div class="quick-title">Mi perfil</div>
+          <div class="quick-sub">Stats y historial</div>
+        </div>
+      </div>
+
+      <!-- Actividad reciente -->
+      <div class="section-label fade-up-3" style="margin-top:16px;">Actividad reciente</div>
+      <div class="card fade-up-3">
+        <div class="rank-item" style="cursor:default;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Victoria vs Pedro Rojas</div><div style="font-size:11px;color:var(--text2);">6-3 / 6-4 · Hace 3 días</div></div>
+          <span class="pill pill-green">+18 MMR</span>
+        </div>
+        <div class="rank-item" style="cursor:default;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Victoria vs Luis Vera</div><div style="font-size:11px;color:var(--text2);">7-5 / 6-2 · Hace 5 días</div></div>
+          <span class="pill pill-green">+22 MMR</span>
+        </div>
+        <div class="rank-item" style="cursor:default;border:none;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Derrota vs Andrés Silva</div><div style="font-size:11px;color:var(--text2);">3-6 / 4-6 · Hace 7 días</div></div>
+          <span class="pill pill-red">-14 MMR</span>
+        </div>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-home"></div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: PERFIL ═══════════════ -->
+  <div class="screen" id="screen-perfil">
+    <div class="top-bar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;">Mi perfil</div>
+      <div style="width:36px;"></div>
+    </div>
+    <div class="scroll-area" style="padding:0 20px 20px;">
+      <!-- Header perfil -->
+      <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:16px;" class="fade-up">
+        <div class="avatar" style="width:72px;height:72px;background:var(--accent);font-size:24px;border:2px solid rgba(79,70,229,0.5);">FM</div>
+        <div style="flex:1;">
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">Felipe Martínez</div>
+          <div style="font-size:13px;color:var(--text2);margin:2px 0 8px;">Valparaíso · 24 años</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="pill pill-purple">Intermedio · 4ª</span>
+            <span class="pill pill-green">38 victorias</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MMR -->
+      <div class="mmr-bar fade-up-1" style="margin-bottom:16px;">
+        <div>
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;">MMR</div>
+          <div class="mmr-num">1 248</div>
+          <div style="font-size:12px;color:var(--text2);">#14 en Valparaíso</div>
+        </div>
+        <div style="margin-left:auto;text-align:right;">
+          <div style="font-size:14px;font-weight:700;color:var(--green);">▲ +127</div>
+          <div style="font-size:11px;color:var(--text2);">último mes</div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;" class="fade-up-2">
+        <div class="card" style="text-align:center;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">54</div>
+          <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Partidos</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">70%</div>
+          <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Victorias</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px;">
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:700;">4.8</div>
+          <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">Fair play</div>
+        </div>
+      </div>
+
+      <!-- Evolución MMR -->
+      <div class="card fade-up-3" style="margin-bottom:16px;">
+        <div class="section-label" style="margin-bottom:12px;">Evolución MMR — últimas 7 semanas</div>
+        <div class="bars-chart" style="height:64px;">
+          <div class="bar" style="flex:1;height:36px;background:rgba(79,70,229,0.35);"></div>
+          <div class="bar" style="flex:1;height:28px;background:rgba(79,70,229,0.35);"></div>
+          <div class="bar" style="flex:1;height:44px;background:rgba(79,70,229,0.5);"></div>
+          <div class="bar" style="flex:1;height:32px;background:rgba(79,70,229,0.4);"></div>
+          <div class="bar" style="flex:1;height:50px;background:rgba(79,70,229,0.6);"></div>
+          <div class="bar" style="flex:1;height:46px;background:rgba(79,70,229,0.6);"></div>
+          <div class="bar" style="flex:1;height:60px;background:var(--accent);"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span style="font-size:9px;color:var(--text2);">S1</span><span style="font-size:9px;color:var(--text2);">S2</span><span style="font-size:9px;color:var(--text2);">S3</span><span style="font-size:9px;color:var(--text2);">S4</span><span style="font-size:9px;color:var(--text2);">S5</span><span style="font-size:9px;color:var(--text2);">S6</span><span style="font-size:9px;color:var(--accent);font-weight:600;">S7</span>
+        </div>
+      </div>
+
+      <!-- Historial -->
+      <div class="section-label fade-up-4">Últimos partidos</div>
+      <div class="card fade-up-4">
+        <div class="rank-item" style="cursor:default;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">vs. Pedro Rojas</div><div style="font-size:11px;color:var(--text2);">6-3 / 6-4</div></div>
+          <span class="pill pill-green">+18</span>
+        </div>
+        <div class="rank-item" style="cursor:default;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">vs. Luis Vera</div><div style="font-size:11px;color:var(--text2);">7-5 / 6-2</div></div>
+          <span class="pill pill-green">+22</span>
+        </div>
+        <div class="rank-item" style="cursor:default;border:none;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">vs. Andrés Silva</div><div style="font-size:11px;color:var(--text2);">3-6 / 4-6</div></div>
+          <span class="pill pill-red">-14</span>
+        </div>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-perfil"></div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: MATCHMAKING ═══════════════ -->
+  <div class="screen" id="screen-matchmaking">
+    <div class="top-bar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;">Matchmaking</div>
+        <div style="font-size:11px;color:var(--text2);">MMR ±150 · Valparaíso</div>
+      </div>
+      <div style="background:rgba(79,70,229,0.15);border:1px solid rgba(79,70,229,0.3);border-radius:8px;padding:4px 10px;font-size:11px;color:#a5b4fc;font-weight:600;cursor:pointer;">Filtrar</div>
+    </div>
+    <div class="scroll-area" style="padding:0 20px 20px;">
+      <div class="section-label fade-up">Mejores compatibilidades para ti</div>
+
+      <div class="player-card highlighted fade-up" onclick="showToast('¡Desafío enviado a Miguel Ríos por WhatsApp!')">
+        <div class="avatar" style="width:46px;height:46px;background:var(--accent);font-size:15px;">MR</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Miguel Ríos</div>
+          <div style="font-size:12px;color:var(--text2);">Viña del Mar · 4ª · 31 años</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <span class="pill pill-purple" style="font-size:10px;">1261 MMR</span>
+            <span style="font-size:10px;color:var(--text2);">Dif. +13</span>
+          </div>
+        </div>
+        <div>
+          <div class="match-ring ring-high"><div class="ring-inner" style="background:var(--bg3);color:#86efac;">98%</div></div>
+          <div style="font-size:9px;color:var(--text2);text-align:center;margin-top:4px;">match</div>
+        </div>
+      </div>
+
+      <div class="player-card fade-up-1" onclick="showToast('¡Desafío enviado a Javier Vega por WhatsApp!')">
+        <div class="avatar" style="width:46px;height:46px;background:#059669;font-size:15px;">JV</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Javier Vega</div>
+          <div style="font-size:12px;color:var(--text2);">Quilpué · 3ª · 27 años</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <span class="pill pill-green" style="font-size:10px;">1219 MMR</span>
+            <span style="font-size:10px;color:var(--text2);">Dif. -29</span>
+          </div>
+        </div>
+        <div>
+          <div class="match-ring ring-high"><div class="ring-inner" style="background:var(--bg3);color:#86efac;">91%</div></div>
+          <div style="font-size:9px;color:var(--text2);text-align:center;margin-top:4px;">match</div>
+        </div>
+      </div>
+
+      <div class="player-card fade-up-2" onclick="showToast('¡Desafío enviado a Ana Paredes por WhatsApp!')">
+        <div class="avatar" style="width:46px;height:46px;background:#854d0e;font-size:15px;">AP</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Ana Paredes</div>
+          <div style="font-size:12px;color:var(--text2);">Valparaíso · 4ª · 29 años</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <span class="pill pill-amber" style="font-size:10px;">1195 MMR</span>
+            <span style="font-size:10px;color:var(--text2);">Dif. -53</span>
+          </div>
+        </div>
+        <div>
+          <div class="match-ring ring-mid"><div class="ring-inner" style="background:var(--bg3);color:#fcd34d;">78%</div></div>
+          <div style="font-size:9px;color:var(--text2);text-align:center;margin-top:4px;">match</div>
+        </div>
+      </div>
+
+      <div class="player-card fade-up-3" onclick="showToast('¡Desafío enviado a Roberto Pino por WhatsApp!')">
+        <div class="avatar" style="width:46px;height:46px;background:#7c3aed;font-size:15px;">RP</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Roberto Pino</div>
+          <div style="font-size:12px;color:var(--text2);">Concón · 5ª · 33 años</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <span class="pill pill-purple" style="font-size:10px;">1311 MMR</span>
+            <span style="font-size:10px;color:var(--text2);">Dif. +63</span>
+          </div>
+        </div>
+        <div>
+          <div class="match-ring ring-mid"><div class="ring-inner" style="background:var(--bg3);color:#fcd34d;">72%</div></div>
+          <div style="font-size:9px;color:var(--text2);text-align:center;margin-top:4px;">match</div>
+        </div>
+      </div>
+
+      <div class="player-card fade-up-4" onclick="showToast('¡Desafío enviado a Carla Méndez por WhatsApp!')">
+        <div class="avatar" style="width:46px;height:46px;background:#db2777;font-size:15px;">CM</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;">Carla Méndez</div>
+          <div style="font-size:12px;color:var(--text2);">Valparaíso · 4ª · 26 años</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <span class="pill pill-purple" style="font-size:10px;">1230 MMR</span>
+            <span style="font-size:10px;color:var(--text2);">Dif. -18</span>
+          </div>
+        </div>
+        <div>
+          <div class="match-ring ring-mid"><div class="ring-inner" style="background:var(--bg3);color:#fcd34d;">68%</div></div>
+          <div style="font-size:9px;color:var(--text2);text-align:center;margin-top:4px;">match</div>
+        </div>
+      </div>
+
+      <div style="padding-top:4px;" class="fade-up-5">
+        <button class="btn btn-primary" onclick="showToast('¡Desafío enviado a Miguel Ríos por WhatsApp!')">Desafiar a Miguel Ríos</button>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-matchmaking"></div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: CREAR PARTIDO ═══════════════ -->
+  <div class="screen" id="screen-crear">
+    <div class="top-bar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;">Crear partido</div>
+      <div style="width:36px;"></div>
+    </div>
+    <div class="scroll-area" style="padding:0 20px 20px;">
+      <div class="fade-up">
+        <div class="section-label">Detalles</div>
+        <div style="display:flex;gap:10px;margin-bottom:14px;">
+          <div style="flex:1;">
+            <div class="input-label">Fecha</div>
+            <input class="input-field" type="text" value="Sáb 29 Mar">
+          </div>
+          <div style="flex:1;">
+            <div class="input-label">Hora</div>
+            <input class="input-field" type="text" value="10:00">
+          </div>
+        </div>
+        <div class="input-group">
+          <div class="input-label">Club / Cancha</div>
+          <input class="input-field" type="text" value="Club Pádel Viña del Mar">
+        </div>
+      </div>
+
+      <div class="fade-up-1">
+        <div class="section-label" style="margin-top:4px;">Formato</div>
+        <div style="display:flex;gap:10px;margin-bottom:16px;" id="format-opts">
+          <div class="format-opt selected" onclick="selectFormat(this)">
+            <div style="font-size:16px;margin-bottom:4px;">👥</div>
+            <div style="font-size:13px;font-weight:600;">Dobles</div>
+            <div style="font-size:11px;color:var(--text2);">2 vs 2</div>
+          </div>
+          <div class="format-opt" onclick="selectFormat(this)">
+            <div style="font-size:16px;margin-bottom:4px;">🧍</div>
+            <div style="font-size:13px;font-weight:600;">Individual</div>
+            <div style="font-size:11px;color:var(--text2);">1 vs 1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fade-up-2">
+        <div class="section-label">Jugadores</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <div class="slot filled">
+            <div class="avatar" style="width:32px;height:32px;background:var(--accent);font-size:10px;border-radius:8px;margin:0 auto 4px;">FM</div>
+            <div style="font-size:10px;color:var(--text2);">Tú</div>
+          </div>
+          <div class="slot filled" onclick="showToast('Miguel Ríos ya está en el partido')">
+            <div class="avatar" style="width:32px;height:32px;background:#059669;font-size:10px;border-radius:8px;margin:0 auto 4px;">MR</div>
+            <div style="font-size:10px;color:var(--text2);">Miguel R.</div>
+          </div>
+          <div class="slot" onclick="showToast('Invitación enviada por WhatsApp')">
+            <div style="width:32px;height:32px;background:var(--bg4);border-radius:8px;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);">+</div>
+            <div style="font-size:10px;color:var(--text2);">Invitar</div>
+          </div>
+          <div class="slot" onclick="showToast('Invitación enviada por WhatsApp')">
+            <div style="width:32px;height:32px;background:var(--bg4);border-radius:8px;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);">+</div>
+            <div style="font-size:10px;color:var(--text2);">Invitar</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fade-up-3">
+        <div class="section-label">Notificar por</div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;" id="notify-opts">
+          <div style="flex:1;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.4);border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .2s;" onclick="selectNotify(this, 'whatsapp')">
+            <div style="font-size:14px;margin-bottom:2px;">📲</div>
+            <div style="font-size:12px;font-weight:600;color:#86efac;">WhatsApp</div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;cursor:pointer;transition:all .2s;" onclick="selectNotify(this, 'push')">
+            <div style="font-size:14px;margin-bottom:2px;">🔔</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text2);">Push</div>
+          </div>
+        </div>
+        <button class="btn btn-primary fade-up-4" onclick="showToast('¡Partido creado! Notificación enviada por WhatsApp 🎉')">Crear y notificar</button>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-crear"></div>
+  </div>
+
+  <!-- ═══════════════ SCREEN: RANKING ═══════════════ -->
+  <div class="screen" id="screen-ranking">
+    <div class="top-bar">
+      <div class="back-btn" onclick="goBack()">←</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;">Ranking</div>
+        <div style="font-size:11px;color:var(--text2);">Valparaíso · Temporada 2026</div>
+      </div>
+      <div style="background:rgba(79,70,229,0.15);border:1px solid rgba(79,70,229,0.3);border-radius:8px;padding:4px 10px;font-size:11px;color:#a5b4fc;font-weight:600;cursor:pointer;">Zona ▾</div>
+    </div>
+    <div class="scroll-area" style="padding:0 20px 20px;">
+
+      <!-- Top 3 podio -->
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:12px;margin-bottom:20px;padding-top:8px;" class="fade-up">
+        <div style="text-align:center;flex:1;">
+          <div class="avatar" style="width:52px;height:52px;background:#7c3aed;font-size:16px;margin:0 auto 6px;border:2px solid rgba(124,58,237,0.5);">RS</div>
+          <div style="font-size:12px;font-weight:600;">Roberto S.</div>
+          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#a5b4fc;">1 389</div>
+          <div style="background:var(--bg4);border-radius:8px 8px 0 0;height:54px;margin-top:8px;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:20px;">🥈</span>
+          </div>
+        </div>
+        <div style="text-align:center;flex:1;">
+          <div class="avatar" style="width:60px;height:60px;background:#b45309;font-size:18px;margin:0 auto 6px;border:2px solid rgba(245,158,11,0.6);">LP</div>
+          <div style="font-size:12px;font-weight:600;">Luis P.</div>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--gold);">1 445</div>
+          <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:8px 8px 0 0;height:72px;margin-top:8px;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:24px;">🥇</span>
+          </div>
+        </div>
+        <div style="text-align:center;flex:1;">
+          <div class="avatar" style="width:52px;height:52px;background:#854d0e;font-size:16px;margin:0 auto 6px;border:2px solid rgba(161,98,7,0.5);">DM</div>
+          <div style="font-size:12px;font-weight:600;">Diego M.</div>
+          <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#fcd34d;">1 356</div>
+          <div style="background:var(--bg4);border-radius:8px 8px 0 0;height:40px;margin-top:8px;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:18px;">🥉</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista ranking -->
+      <div class="card fade-up-1">
+        <div class="rank-item">
+          <div class="rank-num" style="color:var(--text2);">4</div>
+          <div class="avatar" style="width:36px;height:36px;background:#0284c7;font-size:12px;">PR</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Pedro Rojas</div><div style="font-size:11px;color:var(--text2);">Valparaíso · 5ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 312</div><span class="pill pill-green" style="font-size:9px;">▲ +31</span></div>
+        </div>
+        <div class="rank-item">
+          <div class="rank-num" style="color:var(--text2);">5</div>
+          <div class="avatar" style="width:36px;height:36px;background:#be185d;font-size:12px;">AP</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Ana Paredes</div><div style="font-size:11px;color:var(--text2);">Valparaíso · 4ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 295</div><span class="pill pill-red" style="font-size:9px;">▼ -12</span></div>
+        </div>
+        <div class="rank-item">
+          <div class="rank-num" style="color:var(--text2);">6</div>
+          <div class="avatar" style="width:36px;height:36px;background:#0f766e;font-size:12px;">MR</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Miguel Ríos</div><div style="font-size:11px;color:var(--text2);">Viña del Mar · 4ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 261</div><span class="pill pill-green" style="font-size:9px;">▲ +44</span></div>
+        </div>
+        <div class="rank-item">
+          <div class="rank-num" style="color:var(--text2);">7</div>
+          <div class="avatar" style="width:36px;height:36px;background:#4f46e5;font-size:12px;">CM</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Carla Méndez</div><div style="font-size:11px;color:var(--text2);">Valparaíso · 4ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 250</div><span class="pill pill-green" style="font-size:9px;">▲ +19</span></div>
+        </div>
+        <!-- TÚ -->
+        <div class="rank-item" style="background:rgba(79,70,229,0.07);border-radius:10px;padding:12px 8px;margin:-1px -4px;border:1px solid rgba(79,70,229,0.2);">
+          <div class="rank-num" style="color:var(--accent);">14</div>
+          <div class="avatar" style="width:36px;height:36px;background:var(--accent);font-size:12px;border:2px solid rgba(79,70,229,0.5);">FM</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--accent);">Felipe Martínez</div><div style="font-size:11px;color:var(--text2);">Valparaíso · 4ª · Tú</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 248</div><span class="pill pill-green" style="font-size:9px;">▲ +127</span></div>
+        </div>
+        <div class="rank-item">
+          <div class="rank-num" style="color:var(--text2);">15</div>
+          <div class="avatar" style="width:36px;height:36px;background:#6d28d9;font-size:12px;">JV</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Javier Vega</div><div style="font-size:11px;color:var(--text2);">Quilpué · 3ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 219</div><span class="pill pill-red" style="font-size:9px;">▼ -8</span></div>
+        </div>
+        <div class="rank-item" style="border:none;">
+          <div class="rank-num" style="color:var(--text2);">16</div>
+          <div class="avatar" style="width:36px;height:36px;background:#065f46;font-size:12px;">LV</div>
+          <div style="flex:1;"><div style="font-size:13px;font-weight:500;">Luis Vera</div><div style="font-size:11px;color:var(--text2);">Viña del Mar · 3ª</div></div>
+          <div style="text-align:right;"><div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--accent);">1 201</div><span class="pill pill-gray" style="font-size:9px;">= 0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-bar" id="nav-ranking"></div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+</div><!-- /device -->
+
+<script>
+const NAV_ITEMS = [
+  { id: 'home',        icon: '⌂',  label: 'Inicio'   },
+  { id: 'matchmaking', icon: '◎',  label: 'Match'    },
+  { id: 'crear',       icon: '＋', label: 'Partido'  },
+  { id: 'ranking',     icon: '◈',  label: 'Ranking'  },
+  { id: 'perfil',      icon: '◉',  label: 'Perfil'   },
+];
+
+let currentScreen = 'login';
+let history = ['login'];
+
+function buildNavBars() {
+  NAV_ITEMS.forEach(item => {
+    const navId = 'nav-' + (item.id === 'home' ? 'home' :
+                  item.id === 'matchmaking' ? 'matchmaking' :
+                  item.id === 'crear' ? 'crear' :
+                  item.id === 'ranking' ? 'ranking' : 'perfil');
+    const navBars = document.querySelectorAll('.nav-bar');
+    navBars.forEach(nb => {
+      if (!nb.dataset.built) {
+        NAV_ITEMS.forEach(ni => {
+          const div = document.createElement('div');
+          div.className = 'nav-item';
+          div.dataset.target = ni.id;
+          div.innerHTML = `<div class="nav-icon">${ni.icon}</div><div class="nav-label">${ni.label}</div>`;
+          div.onclick = () => goTo(ni.id);
+          nb.appendChild(div);
+        });
+        nb.dataset.built = true;
+      }
+    });
+  });
+  updateNav();
+}
+
+function updateNav() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.target === currentScreen);
+  });
+}
+
+function goTo(screenId) {
+  const prev = document.getElementById('screen-' + currentScreen);
+  const next = document.getElementById('screen-' + screenId);
+  if (!next || screenId === currentScreen) return;
+
+  prev.classList.remove('active');
+  prev.classList.add('back');
+  setTimeout(() => prev.classList.remove('back'), 300);
+
+  next.classList.add('active');
+  currentScreen = screenId;
+  history.push(screenId);
+  updateNav();
+}
+
+function goBack() {
+  if (history.length <= 1) return;
+  history.pop();
+  const prev = history[history.length - 1];
+  const curr = document.getElementById('screen-' + currentScreen);
+  const target = document.getElementById('screen-' + prev);
+  curr.classList.remove('active');
+  target.classList.add('active');
+  currentScreen = prev;
+  updateNav();
+}
+
+function switchTab(tab) {
+  const tabs = ['login', 'register'];
+  tabs.forEach(t => {
+    document.getElementById('tab-' + t).style.background = t === tab ? 'var(--accent)' : 'transparent';
+    document.getElementById('tab-' + t).style.color = t === tab ? '#fff' : 'var(--text2)';
+    document.getElementById('form-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function selectFormat(el) {
+  document.querySelectorAll('.format-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectNotify(el, type) {
+  document.querySelectorAll('#notify-opts > div').forEach(o => {
+    o.style.background = 'var(--bg3)';
+    o.style.borderColor = 'var(--border)';
+    o.querySelector('div:last-child').style.color = 'var(--text2)';
+  });
+  el.style.background = type === 'whatsapp' ? 'rgba(37,211,102,0.1)' : 'rgba(79,70,229,0.1)';
+  el.style.borderColor = type === 'whatsapp' ? 'rgba(37,211,102,0.4)' : 'rgba(79,70,229,0.4)';
+  el.querySelector('div:last-child').style.color = type === 'whatsapp' ? '#86efac' : '#a5b4fc';
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+buildNavBars();
+</script>
+</body>
+</html>
